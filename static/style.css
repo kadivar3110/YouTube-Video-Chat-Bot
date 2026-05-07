@@ -234,10 +234,28 @@ html, body {
     color: var(--accent-light);
 }
 
-/* ===== Video Panel ===== */
+/* ===== Video Panel (Sidebar) ===== */
 .video-panel {
+    position: fixed;
+    top: calc(var(--header-height) + 40px);
+    left: 24px;
+    bottom: 24px;
+    width: 340px;
+    z-index: 100;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity: 1;
+}
+
+.video-panel.collapsed {
+    transform: translateX(-400px);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.sidebar-placeholder {
     width: 340px;
     flex-shrink: 0;
+    transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .panel-body {
@@ -879,15 +897,109 @@ html, body {
     line-height: 1.4;
 }
 
+/* ===== Sidebar Toggle Button (Hamburger) ===== */
+.mobile-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 8px;
+    margin-right: 12px;
+    border-radius: var(--radius-sm);
+    transition: background 0.2s;
+}
+
+.mobile-menu-btn:hover {
+    background: var(--bg-input);
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 768px) {
-    .main-content {
-        flex-direction: column;
+    .app-container {
+        height: 100dvh;
+        padding: 10px;
+        gap: 10px;
     }
 
+    .app-header {
+        justify-content: flex-start;
+        min-height: 56px;
+        padding: 0 12px;
+        gap: 8px;
+        position: relative;
+        z-index: 120;
+    }
+
+    .logo h1 {
+        font-size: 1.05rem;
+    }
+
+    .header-status {
+        margin-left: auto;
+        padding: 4px 10px;
+        font-size: 0.72rem;
+    }
+
+    .main-content {
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* Mobile sidebar: hidden by default, slides in from left */
     .video-panel {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 320px;
+        max-width: 85vw;
+        z-index: 2000; /* Highest z-index at root body */
+        max-height: none;
+        border-radius: 0;
+        box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+        transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        opacity: 1;
+        background: #12121a;
+        backdrop-filter: none;
+        padding-top: 70px;
+        pointer-events: auto;
+    }
+
+    .video-panel .panel-header,
+    .video-panel .panel-body {
+        background: transparent;
+    }
+
+    /* When open, slide in */
+    .video-panel.open {
+        transform: translateX(0);
+        opacity: 1;
+    }
+
+    /* No placeholder on mobile */
+    .sidebar-placeholder {
+        display: none;
+    }
+
+    .chat-panel {
         width: 100%;
-        max-height: 280px;
+    }
+
+    .chat-messages {
+        padding: 14px;
+        gap: 14px;
+    }
+
+    .chat-input-container {
+        padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+    }
+
+    .chat-input-wrapper textarea {
+        font-size: 16px;
     }
 
     .message {
@@ -899,4 +1011,21 @@ html, body {
         left: 12px;
         max-width: none;
     }
+}
+
+/* Sidebar overlay backdrop for mobile */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 1500; /* Below sidebar (2000) but above rest of app */
+    backdrop-filter: blur(4px);
+}
+
+.sidebar-overlay.active {
+    display: block;
 }

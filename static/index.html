@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- 1. The Main App Layout -->
     <div class="app-container">
         <!-- Ambient background blobs -->
         <div class="ambient-bg">
@@ -22,6 +23,13 @@
 
         <!-- Header -->
         <header class="app-header">
+            <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle video panel">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
             <div class="logo">
                 <div class="logo-icon">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -37,95 +45,11 @@
             </div>
         </header>
 
-        <!-- Main content -->
         <main class="main-content">
-            <!-- Left Panel — Video Loader -->
-            <aside class="panel video-panel" id="videoPanel">
-                <div class="panel-header">
-                    <h2>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <polygon points="10 8 16 12 10 16 10 8"></polygon>
-                        </svg>
-                        Video Source
-                    </h2>
-                </div>
+            <!-- On Desktop this is empty space where the sidebar would be if it's pushed -->
+            <div class="sidebar-placeholder" id="sidebarPlaceholder"></div>
 
-                <div class="panel-body">
-                    <!-- Video ID Input -->
-                    <div class="input-group">
-                        <label for="videoIdInput">YouTube Video ID</label>
-                        <div class="input-wrapper">
-                            <input 
-                                type="text" 
-                                id="videoIdInput" 
-                                placeholder="Paste URL or video ID"
-                                autocomplete="off"
-                                spellcheck="false"
-                            >
-                            <button class="btn-paste" id="pasteBtn" title="Paste from clipboard">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                                </svg>
-                            </button>
-                        </div>
-                        <span class="input-hint">Paste full YouTube URL or just the video ID</span>
-                    </div>
-
-                    <!-- Retain Toggle -->
-                    <div class="retain-section" id="retainSection" style="display: none;">
-                        <div class="retain-toggle">
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="retainToggle" checked>
-                                <span class="toggle-slider"></span>
-                            </label>
-                            <div class="retain-label">
-                                <span>Retain previous data</span>
-                                <span class="retain-hint">Merge with existing video knowledge</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Load Button -->
-                    <button class="btn-primary" id="loadVideoBtn">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                            <polyline points="7 10 12 15 17 10"></polyline>
-                            <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        <span>Load Video</span>
-                    </button>
-
-                    <!-- Loading State -->
-                    <div class="loading-state" id="loadingState" style="display: none;">
-                        <div class="spinner"></div>
-                        <span>Processing video transcript...</span>
-                    </div>
-
-                    <!-- Loaded Videos List -->
-                    <div class="loaded-videos" id="loadedVideos" style="display: none;">
-                        <h3>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                            </svg>
-                            Loaded Videos
-                        </h3>
-                        <ul id="videoList"></ul>
-                    </div>
-
-                    <!-- Clear All Button -->
-                    <button class="btn-danger" id="clearAllBtn" style="display: none;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="3 6 5 6 21 6"></polyline>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                        </svg>
-                        Clear All Videos
-                    </button>
-                </div>
-            </aside>
-
-            <!-- Right Panel — Chat -->
+            <!-- Main Chat Area -->
             <section class="panel chat-panel" id="chatPanel">
                 <div class="panel-header">
                     <h2>
@@ -178,6 +102,95 @@
             </section>
         </main>
     </div>
+
+    <!-- 2. The Sidebar (Moved to root for perfect stacking context) -->
+    <aside class="panel video-panel" id="videoPanel">
+        <div class="panel-header">
+            <h2>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polygon points="10 8 16 12 10 16 10 8"></polygon>
+                </svg>
+                Video Source
+            </h2>
+        </div>
+
+        <div class="panel-body">
+            <!-- Video ID Input -->
+            <div class="input-group">
+                <label for="videoIdInput">YouTube Video ID</label>
+                <div class="input-wrapper">
+                    <input 
+                        type="text" 
+                        id="videoIdInput" 
+                        placeholder="Paste URL or video ID"
+                        autocomplete="off"
+                        spellcheck="false"
+                    >
+                    <button class="btn-paste" id="pasteBtn" title="Paste from clipboard">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                    </button>
+                </div>
+                <span class="input-hint">Paste full YouTube URL or just the video ID</span>
+            </div>
+
+            <!-- Retain Toggle -->
+            <div class="retain-section" id="retainSection" style="display: none;">
+                <div class="retain-toggle">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="retainToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <div class="retain-label">
+                        <span>Retain previous data</span>
+                        <span class="retain-hint">Merge with existing video knowledge</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Load Button -->
+            <button class="btn-primary" id="loadVideoBtn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>Load Video</span>
+            </button>
+
+            <!-- Loading State -->
+            <div class="loading-state" id="loadingState" style="display: none;">
+                <div class="spinner"></div>
+                <span>Processing video transcript...</span>
+            </div>
+
+            <!-- Loaded Videos List -->
+            <div class="loaded-videos" id="loadedVideos" style="display: none;">
+                <h3>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    Loaded Videos
+                </h3>
+                <ul id="videoList"></ul>
+            </div>
+
+            <!-- Clear All Button -->
+            <button class="btn-danger" id="clearAllBtn" style="display: none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                Clear All Videos
+            </button>
+        </div>
+    </aside>
+
+    <!-- 3. The Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <script src="script.js"></script>
 </body>

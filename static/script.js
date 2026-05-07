@@ -13,11 +13,55 @@ const sendBtn = document.getElementById('sendBtn');
 const clearChatBtn = document.getElementById('clearChatBtn');
 const headerStatus = document.getElementById('headerStatus');
 const pasteBtn = document.getElementById('pasteBtn');
+const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+const videoPanel = document.getElementById('videoPanel');
+const sidebarPlaceholder = document.getElementById('sidebarPlaceholder');
 
 const API = '';  // same origin
 
 let hasVideo = false;
 let isLoading = false;
+
+// ===== Sidebar Toggle =====
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+const isMobile = () => window.innerWidth <= 768;
+
+function openSidebar() {
+    if (isMobile()) {
+        videoPanel.classList.add('open');
+        sidebarOverlay.classList.add('active');
+    } else {
+        videoPanel.classList.remove('collapsed');
+        if (sidebarPlaceholder) sidebarPlaceholder.style.width = '340px';
+    }
+}
+
+function closeSidebar() {
+    if (isMobile()) {
+        videoPanel.classList.remove('open');
+        sidebarOverlay.classList.remove('active');
+    } else {
+        videoPanel.classList.add('collapsed');
+        if (sidebarPlaceholder) sidebarPlaceholder.style.width = '0';
+    }
+}
+
+mobileMenuBtn.addEventListener('click', () => {
+    if (isMobile()) {
+        const isOpen = videoPanel.classList.contains('open');
+        isOpen ? closeSidebar() : openSidebar();
+    } else {
+        videoPanel.classList.toggle('collapsed');
+    }
+});
+
+// Close sidebar when tapping the dark overlay on mobile
+sidebarOverlay.addEventListener('click', closeSidebar);
+
+// Prevent sidebar from closing when clicking inside it
+videoPanel.addEventListener('click', (e) => {
+    e.stopPropagation();
+});
 
 // ===== Video Loading =====
 loadVideoBtn.addEventListener('click', loadVideo);
@@ -108,8 +152,14 @@ async function loadVideo() {
             : `Video "${title}" loaded successfully (${data.chunks} chunks).`;
         showToast(msg, 'success');
 
+        // Close sidebar automatically on mobile after loading
+        if (isMobile()) {
+            closeSidebar();
+        }
+
     } catch (err) {
-        showToast('Failed to connect to server. Is it running?', 'error');
+        console.error('Fetch error:', err);
+        showToast(`Connection Error: ${err.message || 'Check your internet or server terminal'}`, 'error');
     } finally {
         isLoading = false;
         loadVideoBtn.disabled = false;
@@ -302,7 +352,7 @@ clearAllBtn.addEventListener('click', async () => {
         clearAllBtn.style.display = 'none';
         chatInput.disabled = true;
         sendBtn.disabled = true;
-        chatInput.placeholder = 'Load a video first...';
+        chatInput.placeholder = 'Enter video URL/ID and press Load Video first...';
 
         const dot = headerStatus.querySelector('.status-dot');
         const text = headerStatus.querySelector('.status-text');

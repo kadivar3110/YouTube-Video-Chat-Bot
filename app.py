@@ -13,39 +13,43 @@ model = None
 splitter = None
 template = None
 
+
 def get_models():
     global embedding_model, model, splitter, template
     if embedding_model is None:
-        from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint, HuggingFaceEndpointEmbeddings
+        from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint, HuggingFaceEmbeddings
         from langchain_text_splitters import RecursiveCharacterTextSplitter
         from langchain_core.prompts import PromptTemplate
         
-        print("Loading embedding model...")
-        embedding_model = HuggingFaceEndpointEmbeddings(
-            model="sentence-transformers/all-MiniLM-L6-v2",
-            huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN")
+        print("Loading local embedding model (Lightning Fast!)...")
+        embedding_model = HuggingFaceEmbeddings(
+            model_name="all-MiniLM-L6-v2"
         )
-        print("Loading LLM...")
+        print("Loading LLM API...")
         llm = HuggingFaceEndpoint(
-            repo_id="Qwen/Qwen2.5-72B-Instruct",
+            repo_id="Qwen/Qwen2.5-7B-Instruct",
             task="text-generation",
             temperature=0.1,
+            max_new_tokens=512,
             huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN")
         )
         model = ChatHuggingFace(llm=llm)
-        
+
         splitter = RecursiveCharacterTextSplitter(
             separators=["\n\n", "\n", ".", " "],
             chunk_size=1000, chunk_overlap=200, length_function=len
         )
 
         template = PromptTemplate(
-            template="""You are a knowledgeable expert. You have notes from multiple videos, each labeled (e.g. [Video 1], [Video 2]).
+            template="""You are an expert AI assistant that strictly answers questions based ONLY on the provided video transcripts. You have notes from multiple videos, each labeled (e.g. [Video 1], [Video 2]).
 
 {context}
 
-When the user refers to "first video", "second video", etc., use ONLY that video's information.
-Answer directly and confidently. Never say "not mentioned" or "not explicitly stated". Just answer clearly.
+RULES:
+1. When the user refers to "first video", "second video", etc., use ONLY that video's information.
+2. If the user's question CANNOT be answered using the provided context, you MUST say: "I'm sorry, but that information is not covered in the loaded videos."
+3. Do NOT use outside knowledge to answer questions. 
+4. Answer directly and confidently.
 
 Question: {Question}
 
@@ -54,6 +58,7 @@ Answer:""",
         )
         print("Models ready!")
     return embedding_model, model, splitter, template
+
 
 # State
 vector_store = None
@@ -89,7 +94,7 @@ def fetch_video_store(video_id, video_number):
 
     ytt_api = YouTubeTranscriptApi()
     languages_to_try = [["en"], ["hi"], ["en", "hi"]]
-    
+
     last_error = "Unknown error"
 
     def try_fetch(fn):
@@ -114,7 +119,7 @@ def fetch_video_store(video_id, video_number):
     cookies_file = os.path.join(BASE_DIR, "cookies.txt")
     if not os.path.exists(cookies_file):
         cookies_file = os.path.join(BASE_DIR, "cookiew.txt")
-        
+
     if os.path.exists(cookies_file):
         transcript = try_fetch(lambda langs: ytt_api.fetch(video_id, languages=langs, cookies=cookies_file))
 
@@ -136,6 +141,7 @@ def fetch_video_store(video_id, video_number):
 class LoadVideoRequest(BaseModel):
     video_id: str
     retain: bool = False
+
 
 class ChatRequest(BaseModel):
     query: str
@@ -181,7 +187,7 @@ async def chat(req: ChatRequest):
         return {"error": "No video loaded. Please load a video first."}
 
     try:
-        _, chat_model, _, tmpl = get_models()
+        _, llm_model, _, tmpl = get_models()
         results = vector_store.as_retriever(search_kwargs={"k": 6}).invoke(query)
         context = "\n\n".join(
             f"[Video {r.metadata.get('video_number', '?')} \u2014 {r.metadata.get('video_id', '')}]:\n{r.page_content}"
@@ -192,7 +198,6 @@ async def chat(req: ChatRequest):
 
         for attempt in range(2):
             try:
-                _, llm_model = get_models()
                 answer = llm_model.invoke(prompt)
                 return {"answer": answer.content}
             except Exception:
@@ -220,26 +225,33 @@ async def clear():
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 
+
 @app.get("/")
 async def serve_index():
     return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+
 
 @app.get("/style.css")
 async def serve_css():
     return FileResponse(os.path.join(STATIC_DIR, "style.css"))
 
+
 @app.get("/script.js")
 async def serve_js():
     return FileResponse(os.path.join(STATIC_DIR, "script.js"))
+
 
 @app.get("/favicon.svg")
 async def serve_favicon():
     return FileResponse(os.path.join(STATIC_DIR, "favicon.svg"))
 
+
 if __name__ == "__main__":
     import uvicorn
+
     # Use PORT environment variable for Render, default to 5000 locally
     port = int(os.environ.get("PORT", 5000))
     print(f"\n Server: http://0.0.0.0:{port}")
     # Must bind to 0.0.0.0 for cloud providers to detect it
     uvicorn.run(app, host="0.0.0.0", port=port)
+
