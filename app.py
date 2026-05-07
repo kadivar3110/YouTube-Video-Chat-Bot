@@ -1,22 +1,23 @@
 import os, re, tempfile
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint, HuggingFaceEmbeddings
+from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint, HuggingFaceEndpointEmbeddings
 from youtube_transcript_api import YouTubeTranscriptApi
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import PromptTemplate
 import requests as http_requests
 
-load_dotenv()  # This will look for a .env file in the same folder
+load_dotenv()
 
-# Load models once
+# Load models once — both run via HuggingFace API, nothing heavy on your server
 print("Loading embedding model...")
-# Using a smaller model (MiniLM) so it doesn't crash Render's 512MB free tier
-embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+embedding_model = HuggingFaceEndpointEmbeddings(
+    model="sentence-transformers/all-MiniLM-L6-v2",
+    huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN")
+)
 
 print("Loading LLM...")
 llm = HuggingFaceEndpoint(
