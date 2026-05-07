@@ -207,15 +207,24 @@ async def clear():
     return {"success": True}
 
 
-# Serve frontend
+# Serve frontend (from root directory, since static folder was removed)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-STATIC_DIR = os.path.join(BASE_DIR, "static")
 
 @app.get("/")
 async def serve_index():
-    return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+    return FileResponse(os.path.join(BASE_DIR, "index.html"))
 
-app.mount("/", StaticFiles(directory=STATIC_DIR), name="static")
+@app.get("/style.css")
+async def serve_css():
+    return FileResponse(os.path.join(BASE_DIR, "style.css"))
+
+@app.get("/script.js")
+async def serve_js():
+    return FileResponse(os.path.join(BASE_DIR, "script.js"))
+
+@app.get("/favicon.svg")
+async def serve_favicon():
+    return FileResponse(os.path.join(BASE_DIR, "favicon.svg"))
 
 if __name__ == "__main__":
     import uvicorn

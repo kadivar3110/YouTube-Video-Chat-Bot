@@ -10,3 +10,5 @@ youtube-transcript-api
 faiss-cpu
 requests
 browser-cookie3
+sentence-transformers
+tiktoken
