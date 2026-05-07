@@ -3,7 +3,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint, HuggingFaceEndpointEmbeddings
 from youtube_transcript_api import YouTubeTranscriptApi
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
@@ -12,21 +11,29 @@ import requests as http_requests
 
 load_dotenv()
 
-# Load models once — both run via HuggingFace API, nothing heavy on your server
-print("Loading embedding model...")
-embedding_model = HuggingFaceEndpointEmbeddings(
-    model="sentence-transformers/all-MiniLM-L6-v2",
-    huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN")
-)
+# Models are loaded lazily (on first request) so the server starts fast
+embedding_model = None
+model = None
 
-print("Loading LLM...")
-llm = HuggingFaceEndpoint(
-    repo_id="Qwen/Qwen2.5-72B-Instruct",
-    task="text-generation",
-    temperature=0.1,
-    huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN")
-)
-model = ChatHuggingFace(llm=llm)
+def get_models():
+    global embedding_model, model
+    if embedding_model is None:
+        from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint, HuggingFaceEndpointEmbeddings
+        print("Loading embedding model...")
+        embedding_model = HuggingFaceEndpointEmbeddings(
+            model="sentence-transformers/all-MiniLM-L6-v2",
+            huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN")
+        )
+        print("Loading LLM...")
+        llm = HuggingFaceEndpoint(
+            repo_id="Qwen/Qwen2.5-72B-Instruct",
+            task="text-generation",
+            temperature=0.1,
+            huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN")
+        )
+        model = ChatHuggingFace(llm=llm)
+        print("Models ready!")
+    return embedding_model, model
 
 splitter = RecursiveCharacterTextSplitter(
     separators=["\n\n", "\n", ".", " "],
@@ -123,7 +130,8 @@ def fetch_video_store(video_id, video_number):
 
     text = " ".join(s.text for s in transcript)
     docs = splitter.create_documents([text], metadatas=[{"video_number": video_number, "video_id": video_id}])
-    store = FAISS.from_documents(documents=docs, embedding=embedding_model)
+    emb, _ = get_models()
+    store = FAISS.from_documents(documents=docs, embedding=emb)
     return store, len(docs)
 
 
@@ -186,7 +194,8 @@ async def chat(req: ChatRequest):
 
         for attempt in range(2):
             try:
-                answer = model.invoke(prompt)
+                _, llm_model = get_models()
+                answer = llm_model.invoke(prompt)
                 return {"answer": answer.content}
             except Exception:
                 if attempt == 0:
