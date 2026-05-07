@@ -229,5 +229,8 @@ async def serve_favicon():
 
 if __name__ == "__main__":
     import uvicorn
-    print("\n Server: http://localhost:5000")
-    uvicorn.run(app, host="127.0.0.1", port=5000)
+    # Use PORT environment variable for Render, default to 5000 locally
+    port = int(os.environ.get("PORT", 5000))
+    print(f"\n Server: http://0.0.0.0:{port}")
+    # Must bind to 0.0.0.0 for cloud providers to detect it
+    uvicorn.run(app, host="0.0.0.0", port=port)
