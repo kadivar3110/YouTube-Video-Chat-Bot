@@ -1,0 +1,223 @@
+import os, re, tempfile
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint, HuggingFaceEmbeddings
+from youtube_transcript_api import YouTubeTranscriptApi
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
+from langchain_core.prompts import PromptTemplate
+import requests as http_requests
+
+load_dotenv()  # This will look for a .env file in the same folder
+
+# Load models once
+print("Loading embedding model...")
+embedding_model = HuggingFaceEmbeddings()
+
+print("Loading LLM...")
+llm = HuggingFaceEndpoint(
+    repo_id="Qwen/Qwen2.5-72B-Instruct",
+    task="text-generation",
+    temperature=0.1,
+    huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN")
+)
+model = ChatHuggingFace(llm=llm)
+
+splitter = RecursiveCharacterTextSplitter(
+    separators=["\n\n", "\n", ".", " "],
+    chunk_size=1000, chunk_overlap=200, length_function=len
+)
+
+template = PromptTemplate(
+    template="""You are a knowledgeable expert. You have notes from multiple videos, each labeled (e.g. [Video 1], [Video 2]).
+
+{context}
+
+When the user refers to "first video", "second video", etc., use ONLY that video's information.
+Answer directly and confidently. Never say "not mentioned" or "not explicitly stated". Just answer clearly.
+
+Question: {Question}
+
+Answer:""",
+    input_variables=["context", "Question"]
+)
+
+# State
+vector_store = None
+loaded_videos = []
+
+
+# Helper: extract video ID from URL
+def extract_video_id(text):
+    text = text.strip()
+    for pattern in [r'youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})', r'youtu\.be/([a-zA-Z0-9_-]{11})',
+                    r'youtube\.com/embed/([a-zA-Z0-9_-]{11})', r'youtube\.com/shorts/([a-zA-Z0-9_-]{11})']:
+        match = re.search(pattern, text)
+        if match:
+            return match.group(1)
+    return text
+
+
+# Helper: get video title
+def get_video_title(video_id):
+    try:
+        resp = http_requests.get(f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json", timeout=5)
+        if resp.status_code == 200:
+            return resp.json().get("title", video_id)
+    except Exception:
+        pass
+    return video_id
+
+
+# Helper: fetch transcript and build FAISS store
+def fetch_video_store(video_id, video_number):
+    from http.cookiejar import MozillaCookieJar
+    ytt_api = YouTubeTranscriptApi()
+    languages_to_try = [["en"], ["hi"], ["en", "hi"]]
+
+    def try_fetch(fn):
+        for langs in languages_to_try:
+            try:
+                return fn(langs)
+            except Exception:
+                continue
+        try:
+            available = ytt_api.list(video_id)
+            if available:
+                return fn([available[0].language_code])
+        except Exception:
+            pass
+        return None
+
+    # Try with browser cookies first
+    transcript = None
+    try:
+        import browser_cookie3
+        for get_cookies in [browser_cookie3.chrome, browser_cookie3.edge]:
+            try:
+                cj = get_cookies(domain_name=".youtube.com")
+                path = os.path.join(tempfile.gettempdir(), "yt_cookies.txt")
+                mcj = MozillaCookieJar(path)
+                for c in cj:
+                    mcj.set_cookie(c)
+                mcj.save(ignore_discard=True, ignore_expires=True)
+                transcript = try_fetch(lambda langs: ytt_api.fetch(video_id, languages=langs, cookies=path))
+                if transcript:
+                    break
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    # Fallback without cookies
+    if not transcript:
+        transcript = try_fetch(lambda langs: ytt_api.fetch(video_id, languages=langs))
+
+    if not transcript:
+        raise Exception(f"No transcript found for video {video_id}")
+
+    text = " ".join(s.text for s in transcript)
+    docs = splitter.create_documents([text], metadatas=[{"video_number": video_number, "video_id": video_id}])
+    store = FAISS.from_documents(documents=docs, embedding=embedding_model)
+    return store, len(docs)
+
+
+# Request models
+class LoadVideoRequest(BaseModel):
+    video_id: str
+    retain: bool = False
+
+class ChatRequest(BaseModel):
+    query: str
+
+
+# FastAPI app
+app = FastAPI(title="VidChat AI")
+
+
+@app.post("/api/load_video")
+async def load_video(req: LoadVideoRequest):
+    global vector_store, loaded_videos
+    video_id = extract_video_id(req.video_id)
+    if not video_id:
+        raise HTTPException(400, "Video ID is required")
+
+    try:
+        video_number = len(loaded_videos) + 1 if (req.retain and vector_store) else 1
+        new_store, chunks = fetch_video_store(video_id, video_number)
+
+        if req.retain and vector_store:
+            vector_store.merge_from(new_store)
+        else:
+            vector_store = new_store
+            loaded_videos = []
+
+        title = get_video_title(video_id)
+        loaded_videos.append({"id": video_id, "title": title, "number": video_number})
+
+        return {"success": True, "video_id": video_id, "title": title, "chunks": chunks,
+                "total_videos": len(loaded_videos), "loaded_videos": loaded_videos,
+                "retained": req.retain and len(loaded_videos) > 1}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/chat")
+async def chat(req: ChatRequest):
+    query = req.query.strip()
+    if not query:
+        raise HTTPException(400, "Query is required")
+    if not vector_store:
+        return {"error": "No video loaded. Please load a video first."}
+
+    try:
+        results = vector_store.as_retriever(search_kwargs={"k": 6}).invoke(query)
+        context = "\n\n".join(
+            f"[Video {r.metadata.get('video_number', '?')} \u2014 {r.metadata.get('video_id', '')}]:\n{r.page_content}"
+            for r in results
+        ) if results else ""
+
+        prompt = template.invoke({"context": context, "Question": query})
+
+        for attempt in range(2):
+            try:
+                answer = model.invoke(prompt)
+                return {"answer": answer.content}
+            except Exception:
+                if attempt == 0:
+                    continue
+                return {"answer": "Sorry, couldn't generate a response. Try rephrasing."}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/status")
+async def status():
+    return {"has_video": vector_store is not None, "loaded_videos": loaded_videos}
+
+
+@app.post("/api/clear")
+async def clear():
+    global vector_store, loaded_videos
+    vector_store = None
+    loaded_videos = []
+    return {"success": True}
+
+
+# Serve frontend
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+
+@app.get("/")
+async def serve_index():
+    return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+
+app.mount("/", StaticFiles(directory=STATIC_DIR), name="static")
+
+if __name__ == "__main__":
+    import uvicorn
+    print("\n Server: http://localhost:5000")
+    uvicorn.run(app, host="127.0.0.1", port=5000)
