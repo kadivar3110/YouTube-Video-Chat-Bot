@@ -15,7 +15,8 @@ load_dotenv()  # This will look for a .env file in the same folder
 
 # Load models once
 print("Loading embedding model...")
-embedding_model = HuggingFaceEmbeddings()
+# Using a smaller model (MiniLM) so it doesn't crash Render's 512MB free tier
+embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 print("Loading LLM...")
 llm = HuggingFaceEndpoint(
